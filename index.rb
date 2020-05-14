@@ -2,23 +2,7 @@ require 'net/http'
 require 'thread'
 require 'json'
 
-=begin
-This Program does the following:
 
-1) Displays the bitcoin price at a time interval set by 'time -seconds'
-'now', 'price' print immediate price
-
-2) Displays what a certain amount of bitcoins are worth with 'worth -quantity'
-It remebers previous worth entries and 'worth' will calculate based on the previous entered quantity.
-
-3) You can set an alert with 'alert -price'
-A song plays when this threshold is meet or passed.
-'stop' stops the music and resets the alert amount to nil
-
-4) 'average' get the average of all the prices printed since the start of the program.
-
-
-=end
 
 @log_file= "log.txt"
 currency_pair= "BTC-USD"
@@ -27,22 +11,21 @@ currency_pair= "BTC-USD"
 @coin_count= 0
 @goal=nil
 
-
-def append(text)
-    open(@log_file, 'a') do |f|
-       f.puts text
-       f.close
-    end
-end
-
-def worth(n)
-    @coin_count = n.to_i if n.to_i !=  0   
-    @coin_count * get_price
+def get_average
+    file_data = File.read(@log_file).split
+    average= (file_data.map(&:to_f).reduce(:+) / file_data.size).to_i
+    "Average since Program started is #{average}"
 end
 
 def time(n)
     @seconds = n.to_i if n.to_i !=  0   
     "Price prints every #{@seconds}"
+end
+
+def worth(n)
+    @coin_count = n.to_i if n.to_i !=  0   
+    total= @coin_count * coin('btc')
+    "The worth of #{@coin_count} is #{total}"
 end
 
 def set_alert(new_price)
@@ -67,39 +50,60 @@ def stop_music
 end
 
 def get_price
-    uri = URI(@price_api)
-    results =  JSON.parse(Net::HTTP.get(uri))
-    price = results["data"]["amount"].to_i
-    alert(price) if @goal != nil
-    price
+    price = coin('btc')
+    if price 
+       puts "BTC: #{price}"
+       STDOUT.flush  
+    else
+        puts "API call failed"
+        STDOUT.flush  
+    end
 end
 
-def spit_price
-    price = get_price
-    append(price)
-    puts "BTC: #{price}"
-    STDOUT.flush  
+def coin(c)
+    return nil if c.nil?
+        
+    coin= c.upcase!
+    currency_pair= coin.concat("-USD")
+
+    price_api= "https://api.coinbase.com/v2/prices/#{currency_pair}/buy"
+    uri = URI(price_api)
+    res = Net::HTTP.get_response(uri)
+
+    if res.is_a?(Net::HTTPSuccess)
+        results = JSON.parse(res.body) 
+        price = results["data"]["amount"].to_i
+        append(price)
+        return price
+    else
+        nil
+    end
+
 end
 
-def get_average
-    file_data = File.read(@log_file).split
-    (file_data.map(&:to_f).reduce(:+) / file_data.size).to_i
+def append(text)
+    open(@log_file, 'a') do |f|
+       f.puts text
+       f.close
+    end
 end
 
 def exec_command(command, ext = nil)
     case command
     when "average"
-        "The average price is #{get_average}"
+        get_average
     when "time"
         time(ext)
     when "worth"
-        "You have $#{worth(ext)}"
+        worth(ext)
     when "alert"
         set_alert(ext)
     when "stop"
         stop_music
     when "now", "price"
         get_price
+    when "alt"
+        coin(ext)
     else
         "Command not found"
     end
@@ -118,7 +122,7 @@ end
 
 def thread_A
     while true
-        spit_price
+        get_price
         sleep @seconds
     end
 end
