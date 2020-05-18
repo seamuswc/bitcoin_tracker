@@ -2,8 +2,6 @@ require 'net/http'
 require 'thread'
 require 'json'
 
-
-
 @log_file= "log.txt"
 currency_pair= "BTC-USD"
 @price_api= "https://api.coinbase.com/v2/prices/#{currency_pair}/buy"
@@ -12,9 +10,13 @@ currency_pair= "BTC-USD"
 @goal=nil
 
 def get_average
-    file_data = File.read(@log_file).split
-    average= (file_data.map(&:to_f).reduce(:+) / file_data.size).to_i
-    "Average since Program started is #{average}"
+    begin
+        file_data = File.read(@log_file).split
+         average= (file_data.map(&:to_f).reduce(:+) / file_data.size).to_i
+        "Average since Program started is #{average}"
+    rescue
+        "Problem accessing log file"
+    end
 end
 
 def time(n)
@@ -24,8 +26,13 @@ end
 
 def worth(n)
     @coin_count = n.to_i if n.to_i !=  0   
-    total= @coin_count * coin('btc')
-    "The worth of #{@coin_count} is #{total}"
+    begin    
+        btc=create_currency_pair('btc')
+        total= @coin_count * coin(btc)[0]
+        "The worth of #{@coin_count} is #{total}"
+    rescue
+        "API call Failed"
+    end
 end
 
 def set_alert(new_price)
@@ -49,42 +56,50 @@ def stop_music
     "Alert has been reset!"
 end
 
-def get_price
-    price = coin('btc')
-    if price 
-       puts "BTC: #{price}"
-       STDOUT.flush  
-    else
-        puts "API call failed"
-        STDOUT.flush  
+def get_price(c = 'btc') 
+    
+    begin
+        currency_pair = create_currency_pair(c)  
+    rescue
+        return "Coin not Valid"
     end
+   
+    begin
+        price = coin(currency_pair) 
+        puts "#{price[1]}: #{price[0]}"
+    rescue
+        "API call Failed"
+    end
+
 end
 
-def coin(c)
-    return nil if c.nil?
-        
-    coin= c.upcase!
-    currency_pair= coin.concat("-USD")
+def create_currency_pair(coin)  
+    coin= coin.upcase!
+    coin.concat("-USD") 
+end
+
+def coin(currency_pair)
 
     price_api= "https://api.coinbase.com/v2/prices/#{currency_pair}/buy"
     uri = URI(price_api)
     res = Net::HTTP.get_response(uri)
-
     if res.is_a?(Net::HTTPSuccess)
         results = JSON.parse(res.body) 
         price = results["data"]["amount"].to_i
         append(price)
-        return price
-    else
-        nil
+        return price, currency_pair
     end
 
 end
 
 def append(text)
-    open(@log_file, 'a') do |f|
-       f.puts text
-       f.close
+    begin
+        open(@log_file, 'a') do |f|
+        f.puts text
+        f.close
+        end
+    rescue
+        puts "Could not log price"
     end
 end
 
@@ -103,7 +118,7 @@ def exec_command(command, ext = nil)
     when "now", "price"
         get_price
     when "alt"
-        coin(ext)
+        get_price(ext)
     else
         "Command not found"
     end

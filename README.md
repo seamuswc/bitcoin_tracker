@@ -21,10 +21,13 @@
 
 ## 'alert -price'
 ###### Sets a price that when passed plays a song 
+###### song plays on Macs only
 
 ## 'alert'
 ###### Displays the alert price
 
 ## 'stop'
 ###### Resets the alert price and stops the song
+###### song stops on Macs only
+
 
