@@ -8,6 +8,8 @@ currency_pair= "BTC-USD"
 @seconds= 10
 @coin_count= 0
 @goal=nil
+@a = nil
+@b = nil
 
 def get_average
     begin
@@ -20,7 +22,11 @@ def get_average
 end
 
 def time(n)
-    @seconds = n.to_i if n.to_i !=  0   
+    if n.to_i !=  0   
+        @seconds = n.to_i 
+        Thread.kill(@a)
+        @a = Thread.new { thread_A  }
+    end
     "Price prints every #{@seconds}"
 end
 
@@ -85,7 +91,7 @@ def coin(currency_pair)
     res = Net::HTTP.get_response(uri)
     if res.is_a?(Net::HTTPSuccess)
         results = JSON.parse(res.body) 
-        price = results["data"]["amount"].to_i
+        price = results["data"]["amount"].to_f
         append(price)
         return price, currency_pair
     end
@@ -137,8 +143,8 @@ end
 
 def thread_A
     while true
-        get_price
         sleep @seconds
+        get_price
     end
 end
 
@@ -150,9 +156,9 @@ end
 
 File.delete(@log_file) if File.exist?(@log_file)
 
+get_price
+@a = Thread.new { thread_A  }
+@b = Thread.new { thread_B  }
 
-a = Thread.new { thread_A  }
-b = Thread.new { thread_B  }
-
-a.join
-b.join
+@a.join
+@b.join
